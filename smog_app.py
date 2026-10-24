@@ -1,4 +1,5 @@
 import streamlit as st
+import requests
 from groq import Groq
 
 st.set_page_config(page_title="Lahore Smog Helper", page_icon="🌫️", layout="centered")
@@ -106,8 +107,68 @@ import os
 api_key = os.getenv("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY")
 client = Groq(api_key=api_key)
 
-system_prompt = """Tum Lahore Smog Helper ho, ek dostana aur mehrbaan bot.
-User jis zubaan mein likhe usi zubaan mein jawab do. English likhe to aasan English mein, Roman Urdu likhe to Roman Urdu mein.
+@st.cache_data(ttl=600)  # 10 minute tak data yaad rakho
+def live_data():
+    LAT, LON = 31.5204, 74.3587  # Lahore
+    w = requests.get(
+        "https://api.open-meteo.com/v1/forecast",
+        params={
+            "latitude": LAT,
+            "longitude": LON,
+            "current": "temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m",
+            "timezone": "Asia/Karachi",
+        },
+        timeout=10,
+    ).json()["current"]
+    a = requests.get(
+        "https://air-quality-api.open-meteo.com/v1/air-quality",
+        params={
+            "latitude": LAT,
+            "longitude": LON,
+            "current": "us_aqi,pm2_5,pm10",
+            "timezone": "Asia/Karachi",
+        },
+        timeout=10,
+    ).json()["current"]
+    return (
+        f"Live Lahore data from Open-Meteo (time {w['time']} Pakistan time): "
+        f"temperature {w['temperature_2m']} C (feels like {w['apparent_temperature']} C), "
+        f"humidity {w['relative_humidity_2m']}%, wind {w['wind_speed_10m']} km/h, "
+        f"US AQI {a['us_aqi']}, PM2.5 {a['pm2_5']}, PM10 {a['pm10']}."
+    )
+
+
+def get_live_text():
+    try:
+        return live_data()
+    except Exception:
+        return None
+
+system_prompt = """You are Lahore Smog Helper, a friendly and kind chatbot.
+
+Language rule:
+- Reply in the same language the user writes in.
+- If the user writes in English, reply in simple English.
+- If the user writes in Roman Urdu (Urdu in English letters), reply in simple Roman Urdu.
+- If the user writes in Urdu script, reply in Urdu script.
+- If the user asks you to switch language, switch.
+
+Conversation rules:
+- If someone asks how you are, reply warmly and ask how they are.
+- Reply politely to greetings, thanks and goodbyes.
+- Smog, air quality, health and safety are your main job, give very good answers on these.
+- You may also answer other general questions briefly and directly.
+- If a question is harmful or very strange, politely decline.
+
+Length rule:
+- Answer only as much as the question needs.
+- Short question: 1-2 lines.
+- Give long detail only if the user asks ("explain in detail").
+- No extra advice, long lists or repetition.
+
+You are not a doctor. Only for serious symptoms, tell the user to see a doctor."""
+old_prompt = """Tum Lahore Smog Helper ho, ek dostana aur mehrbaan bot.
+Roman Urdu mein aasan zubaan mein jawab do.
 
 Baat cheet ke asool:
 - Agar koi hal chaal pooche (jaise "kaise ho?"), to dostana andaaz mein jawab do aur aage poocho, jaise "Main theek hoon, shukriya! Aap sunaiye?"
@@ -163,9 +224,22 @@ if sawal:
     with st.chat_message("assistant"):
         try:
             with st.spinner("Soch raha hoon..."):
+                live = get_live_text()
+                if live:
+                    live_rule = (
+                        live
+                        + "\nUse this live data when the user asks about today's weather, temperature or AQI. "
+                        + "Tell them the AQI is an estimate from Open-Meteo and can differ slightly from ground sensors. "
+                        + "Never invent numbers."
+                    )
+                else:
+                    live_rule = (
+                        "Live data is not available right now. If the user asks about current weather or AQI, "
+                        "say you cannot fetch live data right now. Do not guess any numbers."
+                    )
                 response = client.chat.completions.create(
                     model="openai/gpt-oss-20b",
-                    messages=[{"role": "system", "content": system_prompt}]
+                    messages=[{"role": "system", "content": system_prompt + "\n\n" + live_rule}]
                     + st.session_state.messages,
                 )
             jawab = response.choices[0].message.content
