@@ -1,5 +1,7 @@
-import streamlit as st
+import os
+
 import requests
+import streamlit as st
 from groq import Groq
 
 st.set_page_config(page_title="Lahore Smog Helper", page_icon="🌫️", layout="centered")
@@ -89,23 +91,22 @@ st.markdown("""
 <div class="hero">
   <div class="orb"></div>
   <h1>Lahore Smog Helper</h1>
-  <p>Smog, hawa aur sehat ke baare mein kuch bhi puchein</p>
+  <p>Ask anything about smog, air quality and health</p>
 </div>
 <div class="aqi-row">
-  <span class="aqi-pill" style="background:#4ade80">0-50 Acha</span>
-  <span class="aqi-pill" style="background:#facc15">51-100 Theek</span>
+  <span class="aqi-pill" style="background:#4ade80">0-50 Good</span>
+  <span class="aqi-pill" style="background:#facc15">51-100 Moderate</span>
   <span class="aqi-pill" style="background:#fb923c">101-150 Sensitive</span>
-  <span class="aqi-pill" style="background:#f87171">151-200 Kharab</span>
-  <span class="aqi-pill" style="background:#c084fc">201-300 Bohat kharab</span>
-  <span class="aqi-pill" style="background:#be123c; color:white">300+ Khatarnak</span>
+  <span class="aqi-pill" style="background:#f87171">151-200 Unhealthy</span>
+  <span class="aqi-pill" style="background:#c084fc">201-300 Very unhealthy</span>
+  <span class="aqi-pill" style="background:#be123c; color:white">300+ Hazardous</span>
 </div>
 """, unsafe_allow_html=True)
 
 # ---------- BOT ----------
-import os
-
 api_key = os.getenv("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY")
 client = Groq(api_key=api_key)
+
 
 @st.cache_data(ttl=600)  # 10 minute tak data yaad rakho
 def live_data():
@@ -144,6 +145,7 @@ def get_live_text():
     except Exception:
         return None
 
+
 system_prompt = """You are Lahore Smog Helper, a friendly and kind chatbot.
 
 Language rule:
@@ -167,23 +169,6 @@ Length rule:
 - No extra advice, long lists or repetition.
 
 You are not a doctor. Only for serious symptoms, tell the user to see a doctor."""
-old_prompt = """Tum Lahore Smog Helper ho, ek dostana aur mehrbaan bot.
-Roman Urdu mein aasan zubaan mein jawab do.
-
-Baat cheet ke asool:
-- Agar koi hal chaal pooche (jaise "kaise ho?"), to dostana andaaz mein jawab do aur aage poocho, jaise "Main theek hoon, shukriya! Aap sunaiye?"
-- Salam, shukriya, khuda hafiz jaise alfaaz ka naram lehje mein jawab do.
-- Smog, hawa ki quality, sehat aur hifazat tumhara khaas kaam hai, in sawalon ka behtareen jawab do.
-- Doosre aam sawalon ka bhi chhota aur seedha jawab de sakte ho.
-- Agar koi sawal bohat ajeeb ya nuqsandeh ho, to naram andaaz mein mana kar do.
-
-Jawab ki lambai ka asool:
-- Sirf utna jawab do jitna sawal poocha gaya hai.
-- Chhote sawal ka jawab 1-2 lines mein do.
-- Lambi tafseel tab do jab user khud kahe ("tafseel se batao").
-- Extra salah, lambi list ya dohrao mat karo.
-
-Tum doctor nahi ho. Sirf serious takleef ki soorat mein doctor se milne ka kaho."""
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -191,7 +176,7 @@ if "pending" not in st.session_state:
     st.session_state.pending = None
 
 # Naya sawal (type kiya hua ya button se)
-sawal = st.chat_input("Apna sawal likhein...")
+sawal = st.chat_input("Type your question...")
 if st.session_state.pending:
     sawal = st.session_state.pending
     st.session_state.pending = None
@@ -203,10 +188,10 @@ for msg in st.session_state.messages:
 
 # Shuru mein sawalon ke buttons
 suggestions = [
-    "Mask kaunsa lun? 😷",
-    "Bachon ke liye bahar jana safe hai?",
-    "Ghar ki hawa kaise saaf karun?",
-    "Aankhon mein jalan ho to kya karun?",
+    "Which mask should I use? 😷",
+    "Is it safe for kids to go outside?",
+    "How can I clean the air at home?",
+    "What if my eyes are burning?",
 ]
 if not st.session_state.messages and not sawal:
     cols = st.columns(2)
@@ -223,7 +208,7 @@ if sawal:
 
     with st.chat_message("assistant"):
         try:
-            with st.spinner("Soch raha hoon..."):
+            with st.spinner("Thinking..."):
                 live = get_live_text()
                 if live:
                     live_rule = (
@@ -246,10 +231,10 @@ if sawal:
             st.markdown(jawab)
             st.session_state.messages.append({"role": "assistant", "content": jawab})
         except Exception:
-            st.error("Kuch masla aa gaya, thori der baad dobara koshish karein.")
+            st.error("Something went wrong. Please try again in a moment.")
             st.session_state.messages.pop()
 
 st.markdown(
-    '<div class="foot">AI ke jawab ghalat ho sakte hain. Serious takleef par doctor se milein.</div>',
+    '<div class="foot">AI answers can be wrong. See a doctor for serious symptoms.</div>',
     unsafe_allow_html=True,
 )
