@@ -2,6 +2,7 @@ from http.server import BaseHTTPRequestHandler
 import json
 import os
 import urllib.request
+import urllib.error
 
 MODEL = "llama-3.3-70b-versatile"
 
@@ -13,6 +14,9 @@ SYSTEM_PROMPT = (
     "For serious symptoms like breathing trouble or chest pain, tell them to see a doctor. "
     "If the question is not about smog, air quality or health, politely say you only help with those."
 )
+
+# DEBUG = True  ->  asli error screen pe dikhega (masla theek hone ke baad False kar dena)
+DEBUG = True
 
 
 class handler(BaseHTTPRequestHandler):
@@ -30,9 +34,9 @@ class handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length) or b"{}")
             history = body.get("messages", [])[-10:]
 
-            api_key = os.environ.get("GROQ_API_KEY")
+            api_key = (os.environ.get("GROQ_API_KEY") or "").strip()
             if not api_key:
-                self._send(500, {"reply": "Server setup problem: API key missing."})
+                self._send(500, {"reply": "Server setup problem: GROQ_API_KEY missing hai."})
                 return
 
             payload = {
@@ -54,5 +58,15 @@ class handler(BaseHTTPRequestHandler):
                 result = json.loads(resp.read().decode("utf-8"))
             reply = result["choices"][0]["message"]["content"]
             self._send(200, {"reply": reply})
+
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf-8", "ignore")[:300]
+            msg = "Sorry, kuch masla aa gaya. Dobara try karein."
+            if DEBUG:
+                msg = "DEBUG - Groq error " + str(e.code) + ": " + detail
+            self._send(500, {"reply": msg})
         except Exception as e:
-            self._send(500, {"reply": "Sorry, kuch masla aa gaya. Dobara try karein."})
+            msg = "Sorry, kuch masla aa gaya. Dobara try karein."
+            if DEBUG:
+                msg = "DEBUG - " + type(e).__name__ + ": " + str(e)
+            self._send(500, {"reply": msg})
