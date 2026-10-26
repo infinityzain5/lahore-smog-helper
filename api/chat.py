@@ -4,7 +4,7 @@ import os
 import urllib.request
 import urllib.error
 
-MODEL = "llama-3.3-70b-versatile"
+MODEL = "openai/gpt-oss-20b"
 
 SYSTEM_PROMPT = (
     "You are Lahore Smog Helper, a friendly assistant that answers questions about "
@@ -42,7 +42,8 @@ class handler(BaseHTTPRequestHandler):
             payload = {
                 "model": MODEL,
                 "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + history,
-                "max_tokens": 400,
+                "max_tokens": 1500,
+                "reasoning_effort": "low",
                 "temperature": 0.6,
             }
             req = urllib.request.Request(
