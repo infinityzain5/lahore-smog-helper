@@ -5,114 +5,211 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lahore Smog Helper</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --amber:#e2a14a; --amber2:#c27a2c; --ink:#eef0f2; --mute:#a9afb6; --glass:rgba(22,26,31,.62); --line:rgba(255,255,255,.12); }
+  * { box-sizing:border-box; margin:0; padding:0; }
   body {
-    min-height: 100vh; background: #050805; color: #e8f5e9;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-    background-image: radial-gradient(circle at top left, #0d3b1c 0%, #050805 55%);
-    display: flex; justify-content: center;
+    min-height:100vh; min-height:100dvh; color:var(--ink); padding:20px; overflow-x:hidden;
+    font-family:"Inter","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+    background:linear-gradient(180deg,#1b2026 0%,#363b41 40%,#7d7466 78%,#b3955f 100%) fixed;
   }
-  .app { width: 100%; max-width: 760px; height: 100vh; display: flex; flex-direction: column; padding: 16px; }
-  h1 { text-align: center; color: #5df28f; font-size: 1.9rem; margin-top: 8px; }
-  .sub { text-align: center; color: #8aa08f; margin: 6px 0 14px; font-size: .95rem; }
-  .aqi { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 12px; }
-  .aqi span { font-size: .72rem; font-weight: 700; padding: 5px 10px; border-radius: 20px; color: #111; }
-  .chat { flex: 1; overflow-y: auto; padding: 6px 2px; display: flex; flex-direction: column; gap: 10px; }
-  .msg { max-width: 85%; padding: 10px 14px; border-radius: 16px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
-  .user { align-self: flex-end; background: #1b7a3d; color: #fff; border-bottom-right-radius: 4px; }
-  .bot { align-self: flex-start; background: #101a12; border: 1px solid #1e3a26; border-bottom-left-radius: 4px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-  .chip { background: #0a120c; color: #e8f5e9; border: 1px solid #1d6b36; border-radius: 14px; padding: 9px 14px; cursor: pointer; font-size: .85rem; }
-  .chip:hover { background: #12301b; }
-  .note { text-align: center; font-size: .72rem; color: #5f7565; margin: 8px 0; }
-  .inputbar { display: flex; gap: 8px; background: #0a120c; border: 1px solid #1d6b36; border-radius: 16px; padding: 8px 8px 8px 16px; }
-  .inputbar input { flex: 1; background: transparent; border: none; outline: none; color: #fff; font-size: 1rem; }
-  .inputbar button { background: #1b7a3d; color: #fff; border: none; border-radius: 10px; width: 42px; font-size: 1.2rem; cursor: pointer; }
-  .inputbar button:disabled { opacity: .5; cursor: default; }
-  .typing { opacity: .7; font-style: italic; }
+  .haze { position:fixed; border-radius:50%; filter:blur(80px); pointer-events:none; z-index:0; opacity:.35; }
+  .h1 { width:520px; height:260px; background:#c9b690; top:18%; left:-120px; animation:drift 28s ease-in-out infinite alternate; }
+  .h2 { width:620px; height:300px; background:#9a8f7d; top:46%; right:-160px; animation:drift 34s ease-in-out infinite alternate-reverse; }
+  @keyframes drift { from { transform:translateX(0); } to { transform:translateX(140px); } }
+  .skyline { position:fixed; left:0; right:0; bottom:0; height:170px; z-index:0; pointer-events:none; opacity:.9; }
+  .skyline svg { width:100%; height:100%; }
+
+  .shell { position:relative; z-index:1; max-width:1100px; margin:0 auto; display:grid; grid-template-columns:340px 1fr; gap:18px; height:calc(100dvh - 40px); }
+  .card { background:var(--glass); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid var(--line); border-radius:20px; box-shadow:0 18px 50px rgba(0,0,0,.35); }
+
+  .side { padding:22px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; }
+  .brand { display:flex; align-items:center; gap:12px; }
+  .logo { width:42px; height:42px; border-radius:12px; display:grid; place-items:center; font-size:1.35rem; background:linear-gradient(135deg,var(--amber),var(--amber2)); }
+  .brand h1 { font-size:1.08rem; font-weight:700; letter-spacing:.2px; }
+  .brand p { font-size:.78rem; color:var(--mute); }
+  .gauge { width:100%; margin-top:4px; }
+  .needle { transition:transform .6s cubic-bezier(.3,1.4,.5,1); transform-box:view-box; transform-origin:100px 100px; }
+  .aqinum { text-align:center; margin-top:-6px; }
+  .aqinum b { font-size:2.5rem; font-weight:800; line-height:1; }
+  .aqinum div { font-size:.95rem; font-weight:600; margin-top:2px; }
+  .setlabel { font-size:.78rem; color:var(--mute); text-align:center; }
+  input[type=range] { width:100%; accent-color:var(--amber); }
+  .tip { background:rgba(255,255,255,.07); border:1px solid var(--line); border-left:4px solid var(--amber); border-radius:12px; padding:12px 14px; font-size:.86rem; line-height:1.5; }
+  .scale { display:flex; flex-wrap:wrap; gap:6px; }
+  .scale span { font-size:.68rem; font-weight:600; padding:4px 9px; border-radius:999px; color:#111; }
+
+  .main { display:flex; flex-direction:column; overflow:hidden; }
+  .top { padding:16px 22px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; }
+  .dot { width:9px; height:9px; border-radius:50%; background:#4ade80; box-shadow:0 0 0 4px rgba(74,222,128,.18); }
+  .top span { font-size:.9rem; font-weight:600; }
+  .top small { color:var(--mute); font-size:.78rem; }
+  .newchat { margin-left:auto; background:transparent; color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:7px 12px; cursor:pointer; font-size:.78rem; }
+  .newchat:hover { background:rgba(255,255,255,.08); }
+
+  .chat { flex:1; overflow-y:auto; padding:20px 22px; display:flex; flex-direction:column; gap:14px; }
+  .row { display:flex; gap:10px; align-items:flex-end; animation:rise .25s ease; }
+  .row.user { justify-content:flex-end; }
+  @keyframes rise { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+  .av { width:30px; height:30px; border-radius:9px; display:grid; place-items:center; font-size:.9rem; flex:none; background:linear-gradient(135deg,var(--amber),var(--amber2)); }
+  .msg { max-width:78%; padding:11px 15px; border-radius:16px; line-height:1.55; font-size:.93rem; word-wrap:break-word; }
+  .bot .msg { background:rgba(255,255,255,.09); border:1px solid var(--line); border-bottom-left-radius:5px; }
+  .user .msg { background:linear-gradient(135deg,var(--amber),var(--amber2)); color:#1a1208; font-weight:500; border-bottom-right-radius:5px; }
+  .chips { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .chip { text-align:left; color:var(--ink); background:rgba(255,255,255,.06); border:1px solid var(--line); border-radius:14px; padding:12px 14px; cursor:pointer; font-size:.84rem; transition:.15s; }
+  .chip:hover { border-color:var(--amber); background:rgba(226,161,74,.12); transform:translateY(-1px); }
+  .typing span { display:inline-block; width:7px; height:7px; margin:0 2px; border-radius:50%; background:var(--amber); animation:bob 1s infinite; }
+  .typing span:nth-child(2) { animation-delay:.15s; } .typing span:nth-child(3) { animation-delay:.3s; }
+  @keyframes bob { 0%,60%,100% { transform:translateY(0); opacity:.4; } 30% { transform:translateY(-5px); opacity:1; } }
+
+  .foot { padding:0 22px 6px; font-size:.7rem; color:var(--mute); text-align:center; }
+  .inputbar { display:flex; gap:10px; margin:8px 18px 18px; padding:7px 7px 7px 16px; background:rgba(0,0,0,.35); border:1px solid var(--line); border-radius:14px; }
+  .inputbar:focus-within { border-color:var(--amber); }
+  .inputbar input { flex:1; min-width:0; background:transparent; border:none; outline:none; color:var(--ink); font-size:.95rem; }
+  .inputbar input::placeholder { color:var(--mute); }
+  .inputbar button { width:42px; height:42px; border:none; border-radius:10px; cursor:pointer; font-size:1.2rem; color:#1a1208; font-weight:700; background:linear-gradient(135deg,var(--amber),var(--amber2)); }
+  .inputbar button:disabled { opacity:.45; cursor:default; }
+
+  @media (max-width:820px) {
+    body { padding:12px; }
+    .shell { grid-template-columns:1fr; height:auto; }
+    .side { overflow:visible; }
+    .main { height:75dvh; }
+    .chips { grid-template-columns:1fr; }
+    .msg { max-width:88%; }
+  }
 </style>
 </head>
 <body>
-<div class="app">
-  <h1>Lahore Smog Helper</h1>
-  <p class="sub">Ask anything about smog, air quality and health</p>
+<div class="haze h1"></div><div class="haze h2"></div>
+<div class="skyline">
+  <svg viewBox="0 0 1200 170" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <g fill="#12161a">
+      <rect x="0" y="140" width="1200" height="30"/>
+      <rect x="20" y="112" width="46" height="58"/><rect x="74" y="124" width="38" height="46"/><rect x="130" y="100" width="52" height="70"/>
+      <rect x="200" y="118" width="40" height="52"/><rect x="258" y="108" width="56" height="62"/><rect x="330" y="126" width="44" height="44"/>
+      <rect x="470" y="112" width="260" height="58"/>
+      <path d="M545 112 Q600 34 655 112Z"/><path d="M482 112 Q512 70 542 112Z"/><path d="M658 112 Q688 70 718 112Z"/>
+      <rect x="595" y="26" width="10" height="14"/>
+      <rect x="440" y="52" width="10" height="118"/><path d="M436 52 L445 36 L454 52Z"/>
+      <rect x="750" y="52" width="10" height="118"/><path d="M746 52 L755 36 L764 52Z"/>
+      <rect x="410" y="84" width="8" height="86"/><rect x="782" y="84" width="8" height="86"/>
+      <rect x="830" y="110" width="50" height="60"/><rect x="896" y="98" width="58" height="72"/><rect x="972" y="120" width="42" height="50"/>
+      <rect x="1030" y="104" width="54" height="66"/><rect x="1100" y="116" width="44" height="54"/><rect x="1158" y="106" width="42" height="64"/>
+    </g>
+  </svg>
+</div>
 
-  <div class="aqi">
-    <span style="background:#4ade80">0-50 Good</span>
-    <span style="background:#facc15">51-100 Moderate</span>
-    <span style="background:#fb923c">101-150 Sensitive</span>
-    <span style="background:#f87171">151-200 Unhealthy</span>
-    <span style="background:#c084fc">201-300 Very unhealthy</span>
-    <span style="background:#dc2626;color:#fff">300+ Hazardous</span>
-  </div>
-
-  <div class="chat" id="chat">
-    <div class="msg bot">Hi! I'm the Lahore Smog Helper. Ask me about masks, air quality, kids, or your health during smog season.</div>
-    <div class="chips" id="chips">
-      <div class="chip">Which mask should I use? 😷</div>
-      <div class="chip">Is it safe for kids to go outside?</div>
-      <div class="chip">How can I clean the air at home?</div>
-      <div class="chip">What if my eyes are burning?</div>
+<div class="shell">
+  <aside class="card side">
+    <div class="brand">
+      <div class="logo">🌫️</div>
+      <div><h1>Lahore Smog Helper</h1><p>Air quality guidance for Lahore</p></div>
     </div>
-  </div>
 
-  <p class="note">AI answers can be wrong. See a doctor for serious symptoms.</p>
+    <svg class="gauge" viewBox="0 0 200 112" id="gauge"></svg>
+    <div class="aqinum"><b id="aqiVal">--</b><div id="aqiLabel">Set your AQI</div></div>
+    <input type="range" id="aqiSlider" min="0" max="500" value="150">
+    <p class="setlabel">Slide to your current AQI (check AQI.in or IQAir). The bot will use it in its answers.</p>
+    <div class="tip" id="tip">Move the slider to see advice for your air quality level.</div>
+    <div class="scale" id="scale"></div>
+  </aside>
 
-  <div class="inputbar">
-    <input id="input" type="text" placeholder="Type your question..." autocomplete="off">
-    <button id="send">↑</button>
-  </div>
+  <main class="card main">
+    <div class="top">
+      <div class="dot"></div><span>Smog Assistant</span><small>Online</small>
+      <button class="newchat" id="newchat">New chat</button>
+    </div>
+    <div class="chat" id="chat"></div>
+    <p class="foot">AI answers can be wrong. See a doctor for serious symptoms.</p>
+    <div class="inputbar">
+      <input id="input" type="text" placeholder="Ask about masks, kids, health, air purifiers..." autocomplete="off">
+      <button id="send" aria-label="Send">↑</button>
+    </div>
+  </main>
 </div>
 
 <script>
-  const chat = document.getElementById("chat");
-  const input = document.getElementById("input");
-  const sendBtn = document.getElementById("send");
-  const chips = document.getElementById("chips");
-  let history = [];
-  let busy = false;
+  const BANDS = [
+    { lo:0,   hi:50,  label:"Good",                color:"#3fae6a", tip:"Air is clean. Normal routine is fine." },
+    { lo:50,  hi:100, label:"Moderate",            color:"#e0c341", tip:"Very sensitive people (asthma, elderly, kids) should limit long outdoor activity." },
+    { lo:100, hi:150, label:"Unhealthy for Sensitive", color:"#ef9a3c", tip:"Kids and people with asthma should stay indoors more. A mask is a good idea." },
+    { lo:150, hi:200, label:"Unhealthy",           color:"#e5604d", tip:"Avoid outdoor exercise. Wear an N95 mask outside." },
+    { lo:200, hi:300, label:"Very Unhealthy",      color:"#a05bc8", tip:"Stay indoors, keep windows closed and run an air purifier if you have one." },
+    { lo:300, hi:500, label:"Hazardous",           color:"#9b1c3a", tip:"Health emergency level. Avoid going out; use an N95 only if you must." }
+  ];
+  const SUGGESTIONS = ["Which mask should I use? 😷","Is it safe for kids to go outside?","How can I clean the air at home?","What if my eyes are burning?"];
 
-  function addMsg(text, who) {
-    const div = document.createElement("div");
-    div.className = "msg " + who;
-    div.textContent = text;
-    chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
-    return div;
+  const chat = document.getElementById("chat"), input = document.getElementById("input"), sendBtn = document.getElementById("send");
+  const slider = document.getElementById("aqiSlider");
+  let history = [], busy = false, aqiSet = false, aqi = 150;
+
+  // ---- Gauge ----
+  const gauge = document.getElementById("gauge");
+  function pt(a, r) { return (100 + r*Math.cos(a)).toFixed(2) + " " + (100 - r*Math.sin(a)).toFixed(2); }
+  let svg = "";
+  BANDS.forEach((b, i) => {
+    const a0 = Math.PI - Math.PI*i/6 - 0.012, a1 = Math.PI - Math.PI*(i+1)/6 + 0.012;
+    svg += `<path d="M ${pt(a0,82)} A 82 82 0 0 1 ${pt(a1,82)}" stroke="${b.color}" stroke-width="14" fill="none"/>`;
+  });
+  svg += `<g class="needle" id="needle" style="transform:rotate(0deg)"><line x1="100" y1="100" x2="30" y2="100" stroke="#eef0f2" stroke-width="3" stroke-linecap="round"/></g><circle cx="100" cy="100" r="7" fill="#eef0f2"/>`;
+  gauge.innerHTML = svg;
+
+  const scale = document.getElementById("scale");
+  BANDS.forEach(b => { const s = document.createElement("span"); s.style.background = b.color; s.textContent = (b.hi === 500 ? "300+" : (b.lo+1) + "-" + b.hi) + " " + b.label.split(" ")[0]; scale.appendChild(s); });
+
+  function bandIndex(v) { for (let i = 0; i < BANDS.length; i++) if (v <= BANDS[i].hi) return i; return 5; }
+  function updateGauge(v) {
+    const i = bandIndex(v), b = BANDS[i], t = (i + (v - b.lo) / (b.hi - b.lo)) / 6;
+    document.getElementById("needle").style.transform = "rotate(" + (180 * Math.min(Math.max(t, 0), 1)).toFixed(1) + "deg)";
+    document.getElementById("aqiVal").textContent = v;
+    const l = document.getElementById("aqiLabel"); l.textContent = b.label; l.style.color = b.color;
+    const tip = document.getElementById("tip"); tip.textContent = b.tip; tip.style.borderLeftColor = b.color;
   }
+  slider.addEventListener("input", () => { aqiSet = true; aqi = +slider.value; updateGauge(aqi); });
 
+  // ---- Chat ----
+  function fmt(t) {
+    t = t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    t = t.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/^\s*[-*•]\s+/gm,"• ");
+    return t.replace(/\n/g,"<br>");
+  }
+  function scrollDown() { chat.scrollTop = chat.scrollHeight; }
+  function addMsg(text, who) {
+    const row = document.createElement("div"); row.className = "row " + who;
+    if (who === "bot") { const a = document.createElement("div"); a.className = "av"; a.textContent = "🌿"; row.appendChild(a); }
+    const m = document.createElement("div"); m.className = "msg"; m.textContent = text;
+    row.appendChild(m); chat.appendChild(row); scrollDown(); return m;
+  }
+  function showWelcome() {
+    chat.innerHTML = "";
+    addMsg("Hello! 👋 I'm your Lahore Smog Helper. Ask me about masks, air quality, kids' safety or your health during smog season.", "bot");
+    const c = document.createElement("div"); c.className = "chips"; c.id = "chips";
+    SUGGESTIONS.forEach(s => { const b = document.createElement("button"); b.className = "chip"; b.textContent = s; b.addEventListener("click", () => send(s)); c.appendChild(b); });
+    chat.appendChild(c);
+  }
   async function send(text) {
-    text = text.trim();
-    if (!text || busy) return;
+    text = text.trim(); if (!text || busy) return;
     busy = true; sendBtn.disabled = true;
-    if (chips) chips.style.display = "none";
+    const chips = document.getElementById("chips"); if (chips) chips.remove();
     addMsg(text, "user");
-    history.push({ role: "user", content: text });
+    const content = aqiSet ? "[My current AQI is " + aqi + " (" + BANDS[bandIndex(aqi)].label + ")] " + text : text;
+    history.push({ role:"user", content });
     input.value = "";
-    const typing = addMsg("Typing...", "bot typing");
-
+    const bubble = addMsg("", "bot");
+    bubble.innerHTML = '<span class="typing"><span></span><span></span><span></span></span>';
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history })
-      });
+      const res = await fetch("/api/chat", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ messages:history }) });
       const data = await res.json();
       const reply = data.reply || "Sorry, something went wrong. Please try again.";
-      typing.className = "msg bot";
-      typing.textContent = reply;
-      history.push({ role: "assistant", content: reply });
-    } catch (e) {
-      typing.className = "msg bot";
-      typing.textContent = "Connection problem. Please try again.";
-    }
-    busy = false; sendBtn.disabled = false;
-    input.focus();
+      bubble.innerHTML = fmt(reply);
+      history.push({ role:"assistant", content:reply });
+    } catch (e) { bubble.textContent = "Connection problem. Please try again."; }
+    scrollDown(); busy = false; sendBtn.disabled = false; input.focus();
   }
-
   sendBtn.addEventListener("click", () => send(input.value));
-  input.addEventListener("keydown", (e) => { if (e.key === "Enter") send(input.value); });
-  document.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => send(c.textContent)));
+  input.addEventListener("keydown", e => { if (e.key === "Enter") send(input.value); });
+  document.getElementById("newchat").addEventListener("click", () => { history = []; showWelcome(); });
+  showWelcome();
 </script>
 </body>
 </html>
