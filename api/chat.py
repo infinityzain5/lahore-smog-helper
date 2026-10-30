@@ -1,4 +1,5 @@
 from http.server import BaseHTTPRequestHandler
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import urllib.request
@@ -6,17 +7,92 @@ import urllib.error
 
 MODEL = "openai/gpt-oss-20b"
 
+# Lahore ke coordinates (live AQI aur weather yahin ka aayega)
+LAT, LON = 31.5204, 74.3587
+AIR_URL = ("https://air-quality-api.open-meteo.com/v1/air-quality"
+           "?latitude=%s&longitude=%s&current=us_aqi,pm2_5,pm10&timezone=Asia%%2FKarachi" % (LAT, LON))
+WX_URL = ("https://api.open-meteo.com/v1/forecast"
+          "?latitude=%s&longitude=%s&current=temperature_2m,apparent_temperature,"
+          "relative_humidity_2m,wind_speed_10m,weather_code&timezone=Asia%%2FKarachi" % (LAT, LON))
+
 SYSTEM_PROMPT = (
     "You are Lahore Smog Helper, a friendly assistant that answers questions about "
-    "smog, air quality (AQI), masks, air purifiers and health in Lahore, Pakistan. "
+    "smog, air quality (AQI), weather, masks, air purifiers and health in Lahore, Pakistan. "
     "Keep answers short, practical and easy to understand (max 5 sentences). "
     "Reply in the same language the user writes in (English, Urdu or Roman Urdu). "
     "For serious symptoms like breathing trouble or chest pain, tell them to see a doctor. "
-    "If the question is not about smog, air quality or health, politely say you only help with those."
+    "If the question is not about smog, air quality, weather or health, politely say you only help with those. "
+    "When the user asks about the current AQI, air quality or weather, answer ONLY from the LIVE DATA below "
+    "and mention the numbers. Never invent AQI or weather numbers. "
+    "If a message starts with [My current AQI is ...], that is the user's own reading, use it for advice. "
 )
 
-# DEBUG = True  ->  asli error screen pe dikhega (masla theek hone ke baad False kar dena)
-DEBUG = True
+DEBUG = False
+
+
+def _get(url):
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=6) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def aqi_label(v):
+    if v <= 50: return "Good"
+    if v <= 100: return "Moderate"
+    if v <= 150: return "Unhealthy for Sensitive Groups"
+    if v <= 200: return "Unhealthy"
+    if v <= 300: return "Very Unhealthy"
+    return "Hazardous"
+
+
+def weather_label(code):
+    if code == 0: return "clear sky"
+    if code in (1, 2, 3): return "partly cloudy / cloudy"
+    if code in (45, 48): return "fog"
+    if 51 <= code <= 67: return "drizzle / rain"
+    if 71 <= code <= 77: return "snow"
+    if 80 <= code <= 82: return "rain showers"
+    if code >= 95: return "thunderstorm"
+    return "unclear"
+
+
+def live_data_text():
+    air = wx = None
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        fa = ex.submit(_get, AIR_URL)
+        fw = ex.submit(_get, WX_URL)
+        try:
+            air = fa.result(timeout=8).get("current")
+        except Exception as e:
+            print("AIR API error:", e)
+        try:
+            wx = fw.result(timeout=8).get("current")
+        except Exception as e:
+            print("WEATHER API error:", e)
+
+    lines = []
+    if air and air.get("us_aqi") is not None:
+        v = round(air["us_aqi"])
+        lines.append("US AQI: %s (%s)" % (v, aqi_label(v)))
+        if air.get("pm2_5") is not None:
+            lines.append("PM2.5: %s ug/m3" % round(air["pm2_5"]))
+        if air.get("pm10") is not None:
+            lines.append("PM10: %s ug/m3" % round(air["pm10"]))
+    if wx:
+        if wx.get("temperature_2m") is not None:
+            lines.append("Temperature: %s C (feels like %s C)" % (round(wx["temperature_2m"]), round(wx.get("apparent_temperature", wx["temperature_2m"]))))
+        if wx.get("relative_humidity_2m") is not None:
+            lines.append("Humidity: %s%%" % wx["relative_humidity_2m"])
+        if wx.get("wind_speed_10m") is not None:
+            lines.append("Wind: %s km/h" % round(wx["wind_speed_10m"]))
+        if wx.get("weather_code") is not None:
+            lines.append("Sky: " + weather_label(wx["weather_code"]))
+
+    if not lines:
+        return ("LIVE DATA: not available right now. If the user asks for the current AQI or weather, "
+                "say you cannot fetch live data at the moment and suggest checking IQAir or AQI.in.")
+    return ("LIVE DATA for Lahore (fetched just now, source: Open-Meteo, modelled data so it can differ "
+            "slightly from ground monitors): " + "; ".join(lines) + ".")
 
 
 class handler(BaseHTTPRequestHandler):
@@ -39,9 +115,10 @@ class handler(BaseHTTPRequestHandler):
                 self._send(500, {"reply": "Server setup problem: GROQ_API_KEY missing hai."})
                 return
 
+            system = SYSTEM_PROMPT + live_data_text()
             payload = {
                 "model": MODEL,
-                "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + history,
+                "messages": [{"role": "system", "content": system}] + history,
                 "max_tokens": 1500,
                 "reasoning_effort": "low",
                 "temperature": 0.6,
@@ -62,11 +139,13 @@ class handler(BaseHTTPRequestHandler):
 
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "ignore")[:300]
+            print("GROQ HTTP error:", e.code, detail)
             msg = "Sorry, kuch masla aa gaya. Dobara try karein."
             if DEBUG:
                 msg = "DEBUG - Groq error " + str(e.code) + ": " + detail
             self._send(500, {"reply": msg})
         except Exception as e:
+            print("ERROR:", type(e).__name__, e)
             msg = "Sorry, kuch masla aa gaya. Dobara try karein."
             if DEBUG:
                 msg = "DEBUG - " + type(e).__name__ + ": " + str(e)
