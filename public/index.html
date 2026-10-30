@@ -33,6 +33,9 @@
   .aqinum { text-align:center; margin-top:-6px; }
   .aqinum b { font-size:2.5rem; font-weight:800; line-height:1; }
   .aqinum div { font-size:.95rem; font-weight:600; margin-top:2px; }
+  .live { display:inline-block; margin-top:6px; font-size:.72rem; color:var(--mute); }
+  .livedot { width:7px; height:7px; border-radius:50%; background:#4ade80; display:inline-block; margin-right:5px; animation:blink 1.6s infinite; }
+  @keyframes blink { 50% { opacity:.3; } }
   .setlabel { font-size:.78rem; color:var(--mute); text-align:center; }
   input[type=range] { width:100%; height:32px; accent-color:var(--amber); }
   .tip { background:rgba(255,255,255,.07); border:1px solid var(--line); border-left:4px solid var(--amber); border-radius:12px; padding:12px 14px; font-size:.86rem; line-height:1.5; }
@@ -130,10 +133,10 @@
     </div>
 
     <svg class="gauge" viewBox="0 0 200 112" id="gauge"></svg>
-    <div class="aqinum"><b id="aqiVal">--</b><div id="aqiLabel">Set your AQI</div></div>
+    <div class="aqinum"><b id="aqiVal">--</b><div id="aqiLabel">Loading live AQI...</div><span class="live" id="liveTag"></span></div>
     <input type="range" id="aqiSlider" min="0" max="500" value="150" aria-label="Current AQI">
-    <p class="setlabel">Slide to your current AQI (check AQI.in or IQAir). The bot will use it in its answers.</p>
-    <div class="tip" id="tip">Move the slider to see advice for your air quality level.</div>
+    <p class="setlabel">Live AQI for Lahore. Slide only if your area shows a different reading; the bot will then use your reading.</p>
+    <div class="tip" id="tip">Advice for the current air quality will appear here.</div>
     <div class="scale" id="scale"></div>
   </aside>
 
@@ -201,7 +204,29 @@
     const l = document.getElementById("aqiLabel"); l.textContent = b.label; l.style.color = b.color;
     const tip = document.getElementById("tip"); tip.textContent = b.tip; tip.style.borderLeftColor = b.color;
   }
-  slider.addEventListener("input", () => { aqiSet = true; aqi = +slider.value; updateGauge(aqi); });
+  slider.addEventListener("input", () => {
+    aqiSet = true; aqi = +slider.value; updateGauge(aqi);
+    document.getElementById("liveTag").innerHTML = "Your reading";
+  });
+
+  // ---- Live AQI (auto) ----
+  async function loadLive() {
+    if (aqiSet) return;
+    try {
+      const res = await fetch("/api/aqi");
+      const d = await res.json();
+      if (d.aqi === null || d.aqi === undefined) throw new Error("no aqi");
+      slider.value = d.aqi; updateGauge(d.aqi);
+      let t = "";
+      if (d.time) { t = " · " + d.time.slice(11, 16); }
+      document.getElementById("liveTag").innerHTML = '<span class="livedot"></span>Live · Lahore' + t;
+    } catch (e) {
+      if (document.getElementById("aqiVal").textContent === "--") {
+        document.getElementById("aqiLabel").textContent = "Set your AQI";
+        document.getElementById("tip").textContent = "Live AQI is unavailable right now. Slide to enter your own reading.";
+      }
+    }
+  }
 
   // ---- Chat ----
   function fmt(t) {
@@ -249,6 +274,8 @@
   input.addEventListener("keydown", e => { if (e.key === "Enter") send(input.value); });
   document.getElementById("newchat").addEventListener("click", () => { history = []; showWelcome(); });
   showWelcome();
+  loadLive();
+  setInterval(loadLive, 600000);
 </script>
 </body>
 </html>
